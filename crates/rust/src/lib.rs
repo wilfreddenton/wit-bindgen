@@ -234,6 +234,20 @@ pub struct Opts {
     #[cfg_attr(feature = "clap", arg(long, value_name = "NAME"))]
     pub additional_derive_ignore: Vec<String>,
 
+    /// Extra attribute lines to emit on specific generated record/enum types.
+    /// Each entry is `(wit-type-name, attribute)`, e.g.
+    /// `("challenge-data", "#[derive(stdlib::Indexed)]")`. Names are kebab-case
+    /// as in the wit file. Macro-only (not exposed on the CLI).
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub additional_type_attributes: Vec<(String, String)>,
+
+    /// Extra attribute lines to emit on specific generated record fields. Each
+    /// entry is `("wit-type-name.wit-field-name", attribute)`, e.g.
+    /// `("challenge-data.status", "#[index]")`. Names are kebab-case as in the
+    /// wit file. Macro-only (not exposed on the CLI).
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub additional_field_attributes: Vec<(String, String)>,
+
     /// Remapping of wit import interface and type names to Rust module names
     /// and types.
     ///

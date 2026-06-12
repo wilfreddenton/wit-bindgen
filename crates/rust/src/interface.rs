@@ -2046,6 +2046,26 @@ unsafe fn call_import(&mut self, _params: Self::ParamsLower, _results: *mut u8) 
             .iter()
             .cloned()
             .collect();
+        // Extra per-type / per-field attribute lines configured for this record
+        // (keyed by the kebab-case wit name). Collected up front to avoid
+        // borrowing `opts` while emitting.
+        let wit_name = self.resolve.types[id].name.clone().unwrap_or_default();
+        let type_attrs: Vec<String> = self
+            .r#gen
+            .opts
+            .additional_type_attributes
+            .iter()
+            .filter(|(n, _)| *n == wit_name)
+            .map(|(_, a)| a.clone())
+            .collect();
+        let field_prefix = format!("{wit_name}.");
+        let field_attrs: Vec<(String, String)> = self
+            .r#gen
+            .opts
+            .additional_field_attributes
+            .iter()
+            .filter_map(|(k, a)| k.strip_prefix(&field_prefix).map(|f| (f.to_string(), a.clone())))
+            .collect();
         for (name, mode) in self.modes_of(id) {
             self.rustdoc(docs);
             let mut derives = BTreeSet::new();
@@ -2068,11 +2088,27 @@ unsafe fn call_import(&mut self, _params: Self::ParamsLower, _results: *mut u8) 
                 self.push_str(&derives.into_iter().collect::<Vec<_>>().join(", "));
                 self.push_str(")]\n")
             }
+            // Extra type attributes only on the owned form — the borrowed form
+            // carries a lifetime that custom derives (e.g. storage models) reject.
+            if mode.lifetime.is_none() {
+                for attr in &type_attrs {
+                    self.push_str(attr);
+                    self.push_str("\n");
+                }
+            }
             self.push_str(&format!("pub struct {name}"));
             self.print_generics(mode.lifetime);
             self.push_str(" {\n");
             for field in record.fields.iter() {
                 self.rustdoc(&field.docs);
+                if mode.lifetime.is_none() {
+                    for (f, attr) in &field_attrs {
+                        if *f == field.name {
+                            self.push_str(attr);
+                            self.push_str("\n");
+                        }
+                    }
+                }
                 self.push_str("pub ");
                 self.push_str(&to_rust_ident(&field.name));
                 self.push_str(": ");

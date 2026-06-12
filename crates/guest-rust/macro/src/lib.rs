@@ -127,6 +127,12 @@ impl Parse for Config {
                         opts.additional_derive_ignore =
                             list.into_iter().map(|i| i.value()).collect()
                     }
+                    Opt::AdditionalTypeAttributes(list) => {
+                        opts.additional_type_attributes = list
+                    }
+                    Opt::AdditionalFieldAttributes(list) => {
+                        opts.additional_field_attributes = list
+                    }
                     Opt::With(with) => opts.with.extend(with),
                     Opt::GenerateAll => {
                         opts.generate_all = true;
@@ -312,6 +318,8 @@ mod kw {
     syn::custom_keyword!(export_prefix);
     syn::custom_keyword!(additional_derives);
     syn::custom_keyword!(additional_derives_ignore);
+    syn::custom_keyword!(additional_type_attributes);
+    syn::custom_keyword!(additional_field_attributes);
     syn::custom_keyword!(with);
     syn::custom_keyword!(generate_all);
     syn::custom_keyword!(type_section_suffix);
@@ -394,6 +402,8 @@ enum Opt {
     // Parse as paths so we can take the concrete types/macro names rather than raw strings
     AdditionalDerives(Vec<syn::Path>),
     AdditionalDerivesIgnore(Vec<syn::LitStr>),
+    AdditionalTypeAttributes(Vec<(String, String)>),
+    AdditionalFieldAttributes(Vec<(String, String)>),
     With(HashMap<String, WithOption>),
     GenerateAll,
     TypeSectionSuffix(syn::LitStr),
@@ -522,6 +532,22 @@ impl Parse for Opt {
             syn::bracketed!(contents in input);
             let list = Punctuated::<_, Token![,]>::parse_terminated(&contents)?;
             Ok(Opt::AdditionalDerivesIgnore(list.iter().cloned().collect()))
+        } else if l.peek(kw::additional_type_attributes) {
+            input.parse::<kw::additional_type_attributes>()?;
+            input.parse::<Token![:]>()?;
+            let contents;
+            braced!(contents in input);
+            let fields: Punctuated<_, Token![,]> =
+                contents.parse_terminated(attr_map_field_parse, Token![,])?;
+            Ok(Opt::AdditionalTypeAttributes(fields.into_iter().collect()))
+        } else if l.peek(kw::additional_field_attributes) {
+            input.parse::<kw::additional_field_attributes>()?;
+            input.parse::<Token![:]>()?;
+            let contents;
+            braced!(contents in input);
+            let fields: Punctuated<_, Token![,]> =
+                contents.parse_terminated(attr_map_field_parse, Token![,])?;
+            Ok(Opt::AdditionalFieldAttributes(fields.into_iter().collect()))
         } else if l.peek(kw::with) {
             input.parse::<kw::with>()?;
             input.parse::<Token![:]>()?;
@@ -599,6 +625,13 @@ impl Parse for Opt {
             Err(l.error())
         }
     }
+}
+
+fn attr_map_field_parse(input: ParseStream<'_>) -> Result<(String, String)> {
+    let key = input.parse::<syn::LitStr>()?.value();
+    input.parse::<Token![:]>()?;
+    let value = input.parse::<syn::LitStr>()?.value();
+    Ok((key, value))
 }
 
 fn with_field_parse(input: ParseStream<'_>) -> Result<(String, WithOption)> {
